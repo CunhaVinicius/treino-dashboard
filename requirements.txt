@@ -1,0 +1,8 @@
+streamlit
+pandas
+matplotlib
+fitparse
+python-tcxparser
+gpxpy
+scikit-learn
+numpy
