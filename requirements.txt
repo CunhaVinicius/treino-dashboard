@@ -6,3 +6,6 @@ python-tcxparser
 gpxpy
 scikit-learn
 numpy
+fastapi
+uvicorn
+python-multipart
