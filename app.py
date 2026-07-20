@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from main import (carregar_treinos_apple_health, filtrar_por_ano,
@@ -15,7 +16,7 @@ st.subheader('📤 Upload de Arquivos')
 
 arquivos_upload = st.file_uploader(
     "Faça upload dos seus arquivos de treino",
-    type=['fit', 'tcx', 'gpx', 'xml','csv'],
+    type=['fit', 'tcx', 'gpx', 'xml','csv','zip'],
     accept_multiple_files=True,
     help="Formatos aceitos: .fit (Garmin), .tcx (Nike/Strava), .gpx (GPS), .xml (Apple Health)"
 )
@@ -27,25 +28,49 @@ if arquivos_upload:
         with open(f"temp_{arquivo.name}", "wb") as f:
             f.write(arquivo.getbuffer())
         
-        if arquivo.name.endswith('.xml'):
+        # Se for ZIP, extrair e processar todos os arquivos dentro
+        if arquivo.name.endswith('.zip'):
+            import zipfile
+            import tempfile
+            
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with zipfile.ZipFile(f"temp_{arquivo.name}", 'r') as zip_ref:
+                    zip_ref.extractall(tmpdir)
+                
+                # Procurar automaticamente por arquivos de treino
+                for root, dirs, files in os.walk(tmpdir):
+                    for file in files:
+                        caminho_completo = os.path.join(root, file)
+                        
+                        if file.endswith('.xml'):
+                            treinos_arquivo = carregar_treinos_apple_health(caminho_completo)
+                        elif file.endswith('.gpx'):
+                            from parsers import parse_gpx
+                            treinos_arquivo = parse_gpx(caminho_completo)
+                        elif file.endswith('.fit'):
+                            from parsers import parse_fit
+                            treinos_arquivo = parse_fit(caminho_completo)
+                        elif file.endswith('.tcx'):
+                            from parsers import parse_tcx
+                            treinos_arquivo = parse_tcx(caminho_completo)
+                        else:
+                            continue
+                        
+                        if treinos_arquivo:
+                            todos_treinos.extend(treinos_arquivo)
+        
+        # Se for XML individual
+        elif arquivo.name.endswith('.xml'):
             treinos_arquivo = carregar_treinos_apple_health(f"temp_{arquivo.name}")
-        elif 'samsung' in arquivo.name.lower() and arquivo.name.endswith('.csv'):
-            with open(f"temp_{arquivo.name}", 'r', encoding='utf-8-sig') as f:
-                primeira = f.readline()
-            
-            st.code(primeira[:300])  # Mostra os primeiros 300 caracteres
-            
-            colunas = primeira.strip().split(',')
-            st.write(f"Total de colunas (vírgula): {len(colunas)}")
-            
-            colunas_tab = primeira.strip().split('\t')
-            st.write(f"Total de colunas (tab): {len(colunas_tab)}")
+            if treinos_arquivo:
+                todos_treinos.extend(treinos_arquivo)
+        
+        # Outros formatos
         else:
             from parsers import parse_arquivo
             treinos_arquivo = parse_arquivo(f"temp_{arquivo.name}")
-        
-        if treinos_arquivo:
-            todos_treinos.extend(treinos_arquivo)
+            if treinos_arquivo:
+                todos_treinos.extend(treinos_arquivo)
     
     dados = todos_treinos
     st.success(f"✅ {len(arquivos_upload)} arquivo(s) processados — {len(dados)} treinos carregados!")
