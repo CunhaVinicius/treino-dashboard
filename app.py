@@ -4,15 +4,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from main import (filtrar_por_ano, resumo_por_tipo, encontrar_recordes,
                   distancia_por_semana, projetar_evolucao, filtrar_por_tipo)
-
-# Seu importador universal
 from importer import importar_treinos
 
 st.set_page_config(page_title="Treinos Dashboard", page_icon="🏃", layout="wide")
 st.title('🏃 Dashboard de Treinos')
 
 # ============================================================
-# UPLOAD DE ARQUIVOS (UNIVERSAL)
+# UPLOAD UNIVERSAL
 # ============================================================
 st.subheader('📤 Upload de Arquivos')
 
@@ -20,7 +18,7 @@ arquivos_upload = st.file_uploader(
     "Faça upload dos seus arquivos de treino (qualquer formato)",
     type=['fit', 'tcx', 'gpx', 'xml', 'csv', 'zip', 'json'],
     accept_multiple_files=True,
-    help="Formatos aceitos: qualquer arquivo de saúde (ZIP, CSV, JSON, XML, GPX, FIT, TCX)"
+    help="Arraste arquivos de qualquer app de saúde (Samsung, Apple, Garmin, Strava, etc.)"
 )
 
 if arquivos_upload:
@@ -30,13 +28,27 @@ if arquivos_upload:
         with open(f"temp_{arquivo.name}", "wb") as f:
             f.write(arquivo.getbuffer())
 
-        # Uma única chamada resolve qualquer formato
         treinos_arquivo = importar_treinos(f"temp_{arquivo.name}")
         if treinos_arquivo:
             todos_treinos.extend(treinos_arquivo)
 
-    dados = todos_treinos
-    st.success(f"✅ {len(arquivos_upload)} arquivo(s) processados — {len(dados)} treinos carregados!")
+    # -------------------------------------------------------
+    # FILTRO DE REGISTROS INVÁLIDOS (resumos diários, etc.)
+    # -------------------------------------------------------
+    dados_filtrados = []
+    for t in todos_treinos:
+        distancia = t.get('distancia', 0) or 0
+        duracao = t.get('duracao', 0) or 0
+
+        # Só mantém se tiver distância ou duração > 0
+        if distancia > 0 or duracao > 0:
+            # Remove registros com duração < 1 minuto e sem distância
+            if distancia == 0 and duracao < 1:
+                continue
+            dados_filtrados.append(t)
+
+    dados = dados_filtrados
+    st.success(f"✅ {len(arquivos_upload)} arquivo(s) processados — {len(dados)} treinos válidos carregados!")
 else:
     st.info("👆 Faça upload de qualquer arquivo de saúde (ZIP, CSV, JSON, XML, GPX, FIT, TCX).")
     st.stop()
@@ -54,9 +66,22 @@ traducao_tipo = {
     'running': 'Corrida',
     'walking': 'Caminhada',
     'cycling': 'Ciclismo',
+    'hiking': 'Caminhada',
+    'run': 'Corrida',
+    'walk': 'Caminhada',
+    'bike': 'Ciclismo',
+    'swim': 'Natação',
+    'weight_training': 'Musculação',
     'strength_training': 'Musculação',
     'functional_training': 'Treino Funcional',
-    'other': 'Outro'
+    'yoga': 'Yoga',
+    'other': 'Outro',
+    '1001': 'Corrida',
+    '1002': 'Caminhada',
+    '2001': 'Ciclismo',
+    '15002': 'Corrida',
+    '15003': 'Caminhada',
+    '15005': 'Corrida',
 }
 
 traducao_recordes = {

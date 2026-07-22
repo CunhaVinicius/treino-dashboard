@@ -1,4 +1,3 @@
-# importer.py
 import csv
 import json
 import os
@@ -126,7 +125,6 @@ def inspecionar_arquivo(caminho):
         elif ext == ".xml":
             tree = ET.parse(caminho)
             root = tree.getroot()
-            # Extrair elementos e atributos
             elementos = []
             for elem in root.iter():
                 if elem.attrib:
@@ -196,7 +194,6 @@ def importar_treinos(caminho_arquivo):
     Função universal: recebe qualquer arquivo e retorna lista de treinos padronizados.
     Aceita: .csv, .json, .xml, .gpx, .tcx, .fit, .zip (procura dentro)
     """
-    # Se for ZIP, extrai e processa cada arquivo
     if caminho_arquivo.endswith(".zip"):
         todos_treinos = []
         arquivos = _extrair_arquivos(caminho_arquivo)
@@ -205,14 +202,12 @@ def importar_treinos(caminho_arquivo):
             todos_treinos.extend(treinos)
         return todos_treinos
     
-    # Inspecionar arquivo
     info = inspecionar_arquivo(caminho_arquivo)
     if not info["colunas"]:
         return []
     
     colunas = info["colunas"]
     
-    # Encontrar colunas semanticamente
     col_data_inicio = _encontrar_coluna(colunas, CAMPOS_DATA)
     col_data_fim = _encontrar_coluna(colunas, ["end_time", "end_date", "enddate"])
     col_distancia = _encontrar_coluna(colunas, CAMPOS_DISTANCIA)
@@ -220,11 +215,9 @@ def importar_treinos(caminho_arquivo):
     col_calorias = _encontrar_coluna(colunas, CAMPOS_CALORIAS)
     col_tipo = _encontrar_coluna(colunas, CAMPOS_TIPO)
     
-    # Processar registros
     treinos = []
     for reg in info["registros"]:
         if isinstance(reg, (list, tuple)):
-            # CSV: transformar em dicionário
             reg_dict = {}
             for i, val in enumerate(reg):
                 if i < len(colunas):
@@ -234,7 +227,6 @@ def importar_treinos(caminho_arquivo):
         if not isinstance(reg, dict):
             continue
         
-        # Extrair valores
         data_inicio = _parse_data(reg.get(col_data_inicio)) if col_data_inicio else None
         distancia = _converter_valor(reg.get(col_distancia)) if col_distancia else None
         duracao = _converter_valor(reg.get(col_duracao)) if col_duracao else None
