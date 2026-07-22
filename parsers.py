@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 import csv
 from datetime import datetime
-
+import json
 
 def parse_fit(caminho_arquivo):
     """Parser para arquivos .fit (Garmin e outros smartwatches)"""
@@ -242,3 +242,54 @@ def parse_arquivo(caminho_arquivo):
         return parse_samsung_csv(caminho_arquivo)
     else:
         raise ValueError(f"Formato não suportado: {caminho_arquivo}")
+    
+def parse_samsung_json(caminho_arquivo):
+    """Parser para arquivos JSON de exercício do Samsung Health"""
+    treinos = []
+    try:
+        with open(caminho_arquivo, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # A estrutura pode variar; tentamos extrair os campos comuns
+        start = data.get('start_time')
+        end = data.get('end_time')
+        distance = data.get('distance')  # em metros
+        calories = data.get('calorie')
+        duration_sec = data.get('duration')
+        exercise_type = data.get('exercise_type')
+        
+        if not start or not end:
+            return treinos
+        
+        # Converter duração para minutos
+        if duration_sec:
+            duracao = duration_sec / 60
+        else:
+            # Calcular pela diferença de tempo
+            from datetime import datetime
+            try:
+                s = datetime.fromisoformat(start)
+                e = datetime.fromisoformat(end)
+                duracao = (e - s).total_seconds() / 60
+            except:
+                duracao = 0
+        
+        # Distância para km
+        distancia = distance / 1000 if distance else 0
+        
+        # Mapear tipo
+        tipo = str(exercise_type) if exercise_type else 'other'
+        
+        treino = {
+            'data': start[:19] if start else None,
+            'duracao': duracao,
+            'tipo': tipo,
+            'calorias': calories,
+            'distancia': distancia
+        }
+        treinos.append(treino)
+    
+    except Exception:
+        pass
+    
+    return treinos
