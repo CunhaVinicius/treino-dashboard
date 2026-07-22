@@ -40,9 +40,7 @@ if arquivos_upload:
         distancia = t.get('distancia', 0) or 0
         duracao = t.get('duracao', 0) or 0
 
-        # Só mantém se tiver distância ou duração > 0
         if distancia > 0 or duracao > 0:
-            # Remove registros com duração < 1 minuto e sem distância
             if distancia == 0 and duracao < 1:
                 continue
             dados_filtrados.append(t)
@@ -56,12 +54,24 @@ else:
 st.caption(f"📁 {len(dados)} treinos disponíveis para análise")
 
 # ============================================================
-# FILTROS E TRADUÇÕES
+# FILTROS E TRADUÇÕES (COM ANOS DINÂMICOS E DIAGNÓSTICO)
 # ============================================================
 st.subheader('🔎 Filtros')
-ano_escolhido = st.selectbox('Escolha um ano:', [2023, 2024, 2025, 2026])
+
+# Extrair anos reais dos dados
+anos_disponiveis = sorted({t['data'][:4] for t in dados if t.get('data')})
+if not anos_disponiveis:
+    st.warning("Nenhum treino com data encontrada nos arquivos enviados.")
+    st.stop()
+
+ano_escolhido = st.selectbox('Escolha um ano:', anos_disponiveis)
 treinos = filtrar_por_ano(dados, ano_escolhido)
 
+# Diagnóstico temporário: mostrar tipos únicos encontrados
+tipos_unicos = {t.get('tipo', 'N/A') for t in treinos}
+st.info(f"🔍 Tipos de atividade encontrados no ano selecionado: {tipos_unicos}")
+
+# Dicionário de tradução atualizado (pode ser ajustado conforme diagnóstico)
 traducao_tipo = {
     'running': 'Corrida',
     'walking': 'Caminhada',
@@ -134,13 +144,13 @@ with col_grafico:
 st.divider()
 
 # ============================================================
-# PROJEÇÃO DE EVOLUÇÃO - CORRIDA
+# PROJEÇÃO DE EVOLUÇÃO - CORRIDA (usando o tipo correto 'running')
 # ============================================================
 st.subheader('📊 Projeção de Evolução - Corrida')
 treinos_corrida = filtrar_por_tipo(treinos, 'running')
 
 if len(treinos_corrida) < 2:
-    st.warning("⚠️ Poucos treinos de corrida para gerar projeção.")
+    st.warning("⚠️ Poucos treinos de corrida para gerar projeção. Verifique se há treinos do tipo 'running' nos dados.")
 else:
     dados_real = distancia_por_semana(treinos_corrida)
     dados_projecao = projetar_evolucao(treinos_corrida)
