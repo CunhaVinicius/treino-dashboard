@@ -2,23 +2,25 @@ import streamlit as st
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
-from main import (carregar_treinos_apple_health, filtrar_por_ano,
-                  resumo_por_tipo, encontrar_recordes, distancia_por_semana,
-                  projetar_evolucao, filtrar_por_tipo)
+from main import (filtrar_por_ano, resumo_por_tipo, encontrar_recordes,
+                  distancia_por_semana, projetar_evolucao, filtrar_por_tipo)
+
+# Seu importador universal
+from importer import importar_treinos
 
 st.set_page_config(page_title="Treinos Dashboard", page_icon="🏃", layout="wide")
 st.title('🏃 Dashboard de Treinos')
 
 # ============================================================
-# UPLOAD DE ARQUIVOS
+# UPLOAD DE ARQUIVOS (UNIVERSAL)
 # ============================================================
 st.subheader('📤 Upload de Arquivos')
 
 arquivos_upload = st.file_uploader(
-    "Faça upload dos seus arquivos de treino",
+    "Faça upload dos seus arquivos de treino (qualquer formato)",
     type=['fit', 'tcx', 'gpx', 'xml', 'csv', 'zip', 'json'],
     accept_multiple_files=True,
-    help="Formatos aceitos: .fit, .tcx, .gpx, .xml, .csv, .json, .zip"
+    help="Formatos aceitos: qualquer arquivo de saúde (ZIP, CSV, JSON, XML, GPX, FIT, TCX)"
 )
 
 if arquivos_upload:
@@ -28,61 +30,15 @@ if arquivos_upload:
         with open(f"temp_{arquivo.name}", "wb") as f:
             f.write(arquivo.getbuffer())
 
-        # --- Processamento de arquivo ZIP ---
-        if arquivo.name.endswith('.zip'):
-            import zipfile
-            import tempfile
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with zipfile.ZipFile(f"temp_{arquivo.name}", 'r') as zip_ref:
-                    zip_ref.extractall(tmpdir)
-
-                for root, dirs, files in os.walk(tmpdir):
-                    for file in files:
-                        caminho_completo = os.path.join(root, file)
-
-                        if file.endswith('.xml'):
-                            treinos_arquivo = carregar_treinos_apple_health(caminho_completo)
-                        elif file.endswith('.gpx'):
-                            from parsers import parse_gpx
-                            treinos_arquivo = parse_gpx(caminho_completo)
-                        elif file.endswith('.fit'):
-                            from parsers import parse_fit
-                            treinos_arquivo = parse_fit(caminho_completo)
-                        elif file.endswith('.tcx'):
-                            from parsers import parse_tcx
-                            treinos_arquivo = parse_tcx(caminho_completo)
-                        elif file.endswith('.json'):
-                            from parsers import parse_samsung_json
-                            treinos_arquivo = parse_samsung_json(caminho_completo)
-                        else:
-                            continue
-
-                        if treinos_arquivo:
-                            todos_treinos.extend(treinos_arquivo)
-
-        # --- Processamento de arquivos individuais ---
-        elif arquivo.name.endswith('.xml'):
-            treinos_arquivo = carregar_treinos_apple_health(f"temp_{arquivo.name}")
-            if treinos_arquivo:
-                todos_treinos.extend(treinos_arquivo)
-
-        elif arquivo.name.endswith('.json'):
-            from parsers import parse_samsung_json
-            treinos_arquivo = parse_samsung_json(f"temp_{arquivo.name}")
-            if treinos_arquivo:
-                todos_treinos.extend(treinos_arquivo)
-
-        else:
-            from parsers import parse_arquivo
-            treinos_arquivo = parse_arquivo(f"temp_{arquivo.name}")
-            if treinos_arquivo:
-                todos_treinos.extend(treinos_arquivo)
+        # Uma única chamada resolve qualquer formato
+        treinos_arquivo = importar_treinos(f"temp_{arquivo.name}")
+        if treinos_arquivo:
+            todos_treinos.extend(treinos_arquivo)
 
     dados = todos_treinos
     st.success(f"✅ {len(arquivos_upload)} arquivo(s) processados — {len(dados)} treinos carregados!")
 else:
-    st.info("👆 Faça upload de pelo menos um arquivo para começar.")
+    st.info("👆 Faça upload de qualquer arquivo de saúde (ZIP, CSV, JSON, XML, GPX, FIT, TCX).")
     st.stop()
 
 st.caption(f"📁 {len(dados)} treinos disponíveis para análise")
@@ -95,11 +51,12 @@ ano_escolhido = st.selectbox('Escolha um ano:', [2023, 2024, 2025, 2026])
 treinos = filtrar_por_ano(dados, ano_escolhido)
 
 traducao_tipo = {
-    'HKWorkoutActivityTypeRunning': 'Corrida',
-    'HKWorkoutActivityTypeWalking': 'Caminhada',
-    'HKWorkoutActivityTypeCycling': 'Ciclismo',
-    'HKWorkoutActivityTypeTraditionalStrengthTraining': 'Musculação',
-    'HKWorkoutActivityTypeFunctionalStrengthTraining': 'Treino Funcional'
+    'running': 'Corrida',
+    'walking': 'Caminhada',
+    'cycling': 'Ciclismo',
+    'strength_training': 'Musculação',
+    'functional_training': 'Treino Funcional',
+    'other': 'Outro'
 }
 
 traducao_recordes = {
@@ -155,7 +112,7 @@ st.divider()
 # PROJEÇÃO DE EVOLUÇÃO - CORRIDA
 # ============================================================
 st.subheader('📊 Projeção de Evolução - Corrida')
-treinos_corrida = filtrar_por_tipo(treinos, 'HKWorkoutActivityTypeRunning')
+treinos_corrida = filtrar_por_tipo(treinos, 'running')
 
 if len(treinos_corrida) < 2:
     st.warning("⚠️ Poucos treinos de corrida para gerar projeção.")
