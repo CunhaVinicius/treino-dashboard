@@ -16,32 +16,31 @@ st.subheader('📤 Upload de Arquivos')
 
 arquivos_upload = st.file_uploader(
     "Faça upload dos seus arquivos de treino",
-    type=['fit', 'tcx', 'gpx', 'xml','csv','zip'],
+    type=['fit', 'tcx', 'gpx', 'xml', 'csv', 'zip', 'json'],
     accept_multiple_files=True,
-    help="Formatos aceitos: .fit (Garmin), .tcx (Nike/Strava), .gpx (GPS), .xml (Apple Health)"
+    help="Formatos aceitos: .fit, .tcx, .gpx, .xml, .csv, .json, .zip"
 )
 
 if arquivos_upload:
     todos_treinos = []
-    
+
     for arquivo in arquivos_upload:
         with open(f"temp_{arquivo.name}", "wb") as f:
             f.write(arquivo.getbuffer())
-        
-        # Se for ZIP, extrair e processar todos os arquivos dentro
+
+        # --- Processamento de arquivo ZIP ---
         if arquivo.name.endswith('.zip'):
             import zipfile
             import tempfile
-            
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 with zipfile.ZipFile(f"temp_{arquivo.name}", 'r') as zip_ref:
                     zip_ref.extractall(tmpdir)
-                
-                # Procurar automaticamente por arquivos de treino
+
                 for root, dirs, files in os.walk(tmpdir):
                     for file in files:
                         caminho_completo = os.path.join(root, file)
-                        
+
                         if file.endswith('.xml'):
                             treinos_arquivo = carregar_treinos_apple_health(caminho_completo)
                         elif file.endswith('.gpx'):
@@ -53,32 +52,44 @@ if arquivos_upload:
                         elif file.endswith('.tcx'):
                             from parsers import parse_tcx
                             treinos_arquivo = parse_tcx(caminho_completo)
+                        elif file.endswith('.json'):
+                            from parsers import parse_samsung_json
+                            treinos_arquivo = parse_samsung_json(caminho_completo)
                         else:
                             continue
-                        
+
                         if treinos_arquivo:
                             todos_treinos.extend(treinos_arquivo)
-        
-        # Se for XML individual
+
+        # --- Processamento de arquivos individuais ---
         elif arquivo.name.endswith('.xml'):
             treinos_arquivo = carregar_treinos_apple_health(f"temp_{arquivo.name}")
             if treinos_arquivo:
                 todos_treinos.extend(treinos_arquivo)
-        
-        # Outros formatos
+
+        elif arquivo.name.endswith('.json'):
+            from parsers import parse_samsung_json
+            treinos_arquivo = parse_samsung_json(f"temp_{arquivo.name}")
+            if treinos_arquivo:
+                todos_treinos.extend(treinos_arquivo)
+
         else:
             from parsers import parse_arquivo
             treinos_arquivo = parse_arquivo(f"temp_{arquivo.name}")
             if treinos_arquivo:
                 todos_treinos.extend(treinos_arquivo)
-    
+
     dados = todos_treinos
     st.success(f"✅ {len(arquivos_upload)} arquivo(s) processados — {len(dados)} treinos carregados!")
 else:
     st.info("👆 Faça upload de pelo menos um arquivo para começar.")
     st.stop()
+
 st.caption(f"📁 {len(dados)} treinos disponíveis para análise")
 
+# ============================================================
+# FILTROS E TRADUÇÕES
+# ============================================================
 st.subheader('🔎 Filtros')
 ano_escolhido = st.selectbox('Escolha um ano:', [2023, 2024, 2025, 2026])
 treinos = filtrar_por_ano(dados, ano_escolhido)
@@ -97,6 +108,9 @@ traducao_recordes = {
     'mais_calorias': 'Recorde de Calorias'
 }
 
+# ============================================================
+# PROCESSAMENTO DOS DADOS
+# ============================================================
 resumo_treinos = resumo_por_tipo(treinos)
 
 soma_distancia = sum(d['distancia_total'] for d in resumo_treinos.values())
@@ -115,6 +129,9 @@ tabela_recordes.rename(columns={
 }, inplace=True)
 tabela_recordes = tabela_recordes.astype(str)
 
+# ============================================================
+# MÉTRICAS PRINCIPAIS
+# ============================================================
 st.subheader('📊 Métricas')
 col1, col2, col3 = st.columns(3)
 col1.metric('Total de Treinos', len(treinos))
@@ -122,6 +139,9 @@ col2.metric('Distância Total (km)', round(soma_distancia, 2))
 col3.metric('Total de Calorias', round(soma_calorias, 2))
 st.divider()
 
+# ============================================================
+# ANÁLISE POR TIPO DE ATIVIDADE
+# ============================================================
 st.subheader('🏃 Análise por Tipo de Atividade')
 col_tabela, col_grafico = st.columns([1, 1])
 with col_tabela:
@@ -131,6 +151,9 @@ with col_grafico:
     st.bar_chart(dados_grafico)
 st.divider()
 
+# ============================================================
+# PROJEÇÃO DE EVOLUÇÃO - CORRIDA
+# ============================================================
 st.subheader('📊 Projeção de Evolução - Corrida')
 treinos_corrida = filtrar_por_tipo(treinos, 'HKWorkoutActivityTypeRunning')
 
