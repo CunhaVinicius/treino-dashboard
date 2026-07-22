@@ -75,9 +75,20 @@ def _converter_valor(valor, tipo="float"):
 
 
 def _parse_data(valor):
-    """Tenta converter string para data em formato ISO"""
+    """Converte qualquer formato de data para string ISO"""
     if not valor:
         return None
+
+    # Se for número (timestamp Unix)
+    if isinstance(valor, (int, float)):
+        try:
+            if valor > 1e10:          # milissegundos
+                valor = valor / 1000
+            return datetime.fromtimestamp(valor).strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            pass
+
+    # Tentar strings com formatos conhecidos
     formatos = [
         "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d",
         "%d/%m/%Y %H:%M:%S", "%d/%m/%Y", "%m/%d/%Y %H:%M:%S",
@@ -187,7 +198,7 @@ def inspecionar_arquivo(caminho):
 
 
 # ============================================================
-# MAPEADOR SEMÂNTICO + NORMALIZADOR
+# MAPEADOR SEMÂNTICO + NORMALIZADOR (COM CONVERSÃO DE UNIDADES)
 # ============================================================
 def importar_treinos(caminho_arquivo):
     """
@@ -209,7 +220,6 @@ def importar_treinos(caminho_arquivo):
     colunas = info["colunas"]
     
     col_data_inicio = _encontrar_coluna(colunas, CAMPOS_DATA)
-    col_data_fim = _encontrar_coluna(colunas, ["end_time", "end_date", "enddate"])
     col_distancia = _encontrar_coluna(colunas, CAMPOS_DISTANCIA)
     col_duracao = _encontrar_coluna(colunas, CAMPOS_DURACAO)
     col_calorias = _encontrar_coluna(colunas, CAMPOS_CALORIAS)
@@ -217,6 +227,7 @@ def importar_treinos(caminho_arquivo):
     
     treinos = []
     for reg in info["registros"]:
+        # Se for CSV, transformar linha em dicionário
         if isinstance(reg, (list, tuple)):
             reg_dict = {}
             for i, val in enumerate(reg):
@@ -227,22 +238,38 @@ def importar_treinos(caminho_arquivo):
         if not isinstance(reg, dict):
             continue
         
+        # Data
         data_inicio = _parse_data(reg.get(col_data_inicio)) if col_data_inicio else None
-        distancia = _converter_valor(reg.get(col_distancia)) if col_distancia else None
-        duracao = _converter_valor(reg.get(col_duracao)) if col_duracao else None
-        calorias = _converter_valor(reg.get(col_calorias)) if col_calorias else None
-        tipo = str(reg.get(col_tipo, "")).lower() if col_tipo else "other"
-        
         if not data_inicio:
             continue
         
-        treino = {
-            "data": data_inicio,
-            "duracao": duracao if duracao else 0,
-            "tipo": tipo,
-            "calorias": calorias,
-            "distancia": distancia if distancia else 0,
-        }
-        treinos.append(treino)
+        # Distância (assumir metros, converter para km)
+        distancia = _converter_valor(reg.get(col_distancia)) if col_distancia else None
+        if distancia is not None and distancia > 0:
+            if distancia > 100:   # mais de 100 km em um treino → está em metros
+                distancia = distancia / 1000
+        
+        # Duração (assumir segundos ou milissegundos, converter para minutos)
+        duracao = _converter_valor(reg.get(col_duracao)) if col_duracao else None
+        if duracao is not None and duracao > 0:
+            if duracao > 86400:           # mais de 1 dia em segundos → milissegundos
+                duracao = duracao / 60000 # ms → min
+            else:
+                duracao = duracao / 60    # s → min
+        
+        # Calorias e tipo
+        calorias = _converter_valor(reg.get(col_calorias)) if col_calorias else None
+        tipo = str(reg.get(col_tipo, "")).lower() if col_tipo else "other"
+        
+        # Só adiciona se tiver distância ou duração
+        if (distancia and distancia > 0) or (duracao and duracao > 0):
+            treino = {
+                "data": data_inicio,
+                "duracao": duracao if duracao else 0,
+                "tipo": tipo,
+                "calorias": calorias,
+                "distancia": distancia if distancia else 0,
+            }
+            treinos.append(treino)
     
     return treinos
