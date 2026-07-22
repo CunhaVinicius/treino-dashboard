@@ -33,15 +33,22 @@ if arquivos_upload:
             todos_treinos.extend(treinos_arquivo)
 
     # -------------------------------------------------------
-    # FILTRO DE REGISTROS INVÁLIDOS (resumos diários, etc.)
+    # FILTRO DE REGISTROS INVÁLIDOS
     # -------------------------------------------------------
     dados_filtrados = []
     for t in todos_treinos:
-        distancia = t.get('distancia', 0) or 0
-        duracao = t.get('duracao', 0) or 0
+        dist = t.get('distancia', 0) or 0
+        dur = t.get('duracao', 0) or 0
+        tipo = t.get('tipo', 'other')
 
-        if distancia > 0 or duracao > 0:
-            if distancia == 0 and duracao < 1:
+        # Remover registros sem tipo definido e sem distância
+        if tipo == 'other' and dist == 0:
+            continue
+        # Remover distâncias absurdas (> 500 km)
+        if dist > 500:
+            continue
+        if dist > 0 or dur > 0:
+            if dist == 0 and dur < 1:
                 continue
             dados_filtrados.append(t)
 
@@ -71,7 +78,6 @@ treinos = filtrar_por_ano(dados, ano_escolhido)
 tipos_unicos = {t.get('tipo', 'N/A') for t in treinos}
 st.info(f"🔍 Tipos de atividade encontrados no ano selecionado: {tipos_unicos}")
 
-# Dicionário de tradução atualizado (pode ser ajustado conforme diagnóstico)
 traducao_tipo = {
     'running': 'Corrida',
     'walking': 'Caminhada',
@@ -144,7 +150,7 @@ with col_grafico:
 st.divider()
 
 # ============================================================
-# PROJEÇÃO DE EVOLUÇÃO - CORRIDA (usando o tipo correto 'running')
+# PROJEÇÃO DE EVOLUÇÃO - CORRIDA
 # ============================================================
 st.subheader('📊 Projeção de Evolução - Corrida')
 treinos_corrida = filtrar_por_tipo(treinos, 'running')
